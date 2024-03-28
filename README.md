@@ -1,6 +1,7 @@
 # converter
 
-npm install
+npm config set registry https://artifacthub-phx.oci.oraclecorp.com/api/npm/npmjs-remote`
+npm --proxy http://www-proxy.us.oracle.com:80 --noproxy artifacthub-phx.oci.oraclecorp.com install
 node index.js
 
 curl -v --noproxy "*" -X POST -H "Content-Type:application/json" -d '{"frequency": "daily", "time": "09:00", "schedule": "repeat", "email": "robert@gmail.com", "reportAbsolutePath": "/chetan/simple/report.xdo"}' http://localhost:3000/api/convert/bip

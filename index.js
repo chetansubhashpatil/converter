@@ -104,6 +104,7 @@ app.post('/api/convert/:component', (req, res) => {
         responseCode = 400;
     }
 
+    console.log("Sending response " + responseCode + " " + response);
     res.status(responseCode).json(response);
   });
 
