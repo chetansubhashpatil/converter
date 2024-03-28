@@ -7,12 +7,13 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(bodyParser.json());
 
+var bip_default = '{"dataModelUrl":"/chetan/simple/datamodel.xdm","startDate":"2024-03-028T11:45:00.000","endDate":"2024-03-29T19:45:00.000","recurrenceExpression":"0 0 12 * * ?","reportRequest":{"reportAbsolutePath":"/chetan/simple/report.xdo"}}';
+
 // POST convert request
 app.post('/api/convert', (req, res) => {
     const request = req.body;
     console.log(request);
-    let response = '{"hi": "hello"}';
-    res.status(200).json(response);
+    res.status(200).json(bip_default);
   });
 
 /*
