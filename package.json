@@ -1,0 +1,28 @@
+{
+  "name": "converter",
+  "version": "1.0.0",
+  "description": "Co-Pilot Converter",
+  "main": "index.js",
+  "dependencies": {
+    "express": "4.19.2",
+    "body-parser": "1.20.2"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chetansubhashpatil/converter.git"
+  },
+  "keywords": [
+    "orahacks",
+    "copilot",
+    "converter"
+  ],
+  "author": "chetan.subhash.patil@oracle.com",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/chetansubhashpatil/converter/issues"
+  },
+  "homepage": "https://github.com/chetansubhashpatil/converter#readme"
+}
