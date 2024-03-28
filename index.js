@@ -1,19 +1,110 @@
 const express = require('express');
 const bodyParser = require('body-parser');
+const moment = require('moment');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+const bip_daily_cron_exp = "@@min@@ @@hour@@ 12 * * ?";
+var bip_job_template = '{"userJobName":"@@userJobName@@","startDate":"@@startDate@@","endDate":"@@endDate@@","reportRequest":{"reportAbsolutePath":"@@reportAbsolutePath@@"}}';
+//var dummy_input = '{"frequency": "daily", "time": "09:00", "schedule": "repeat", "email": "robert@gmail.com", "reportAbsolutePath": "/chetan/simple/report.xdo"}';
+
 // Middleware
 app.use(bodyParser.json());
 
-var bip_default = '{"dataModelUrl":"/chetan/simple/datamodel.xdm","startDate":"2024-03-028T11:45:00.000","endDate":"2024-03-29T19:45:00.000","recurrenceExpression":"0 0 12 * * ?","reportRequest":{"reportAbsolutePath":"/chetan/simple/report.xdo"}}';
-
 // POST convert request
-app.post('/api/convert', (req, res) => {
+app.post('/api/convert/:component', (req, res) => {
+    const component = req.params.component;
+    console.log("Component: " + component);
     const request = req.body;
-    console.log(request);
-    res.status(200).json(bip_default);
+    //const request = JSON.parse(dummy_input);
+    console.log("Request: " + JSON.stringify(request));
+    var response = "{}";
+    var errorMsg = "";
+    var responseCode = 200;
+    if (component && component.toLowerCase() === "bip" && request)
+    {
+        console.log("BIP component conversion begin");
+
+        // Read the request data
+        // time
+        var time = "00:00";
+        if (request.time)
+        {
+            time = request.time;
+            console.log("Setting time " + time);
+        }
+
+        // frequency
+        var recurrenceExpressionCron = "";
+        var frequency = "daily";
+        if (request.frequency)
+        {
+            frequency = request.frequency;
+            console.log("Setting frequency " + frequency);
+            recurrenceExpressionCron = bip_daily_cron_exp;
+        }
+
+        // recurrence
+        if (recurrenceExpressionCron.length !== 0)
+        {
+            //var recur = {recurrenceExpression: ""};
+            var timeSplit = time.split(":");
+            var hour = timeSplit[0];
+            var min = timeSplit[1];
+            recurrenceExpressionCron = recurrenceExpressionCron.replace("@@hour@@", hour).replace("@@min@@", min);
+            //recurrenceExpression = JSON.stringify(recur);
+            console.log("Setting recurrence expression " + recurrenceExpressionCron);
+        }
+
+        // report path
+        var reportAbsolutePath = "";
+        if (request.reportAbsolutePath)
+        {
+            reportAbsolutePath = request.reportAbsolutePath;
+            console.log("Setting report absolute path " + reportAbsolutePath);
+        }
+
+        const currentDate = new Date();
+        // Start after 1 minute
+        var startDate = new Date(currentDate.getTime() + 60000);
+        // End after 3 days
+        var endDate = new Date(startDate.getTime() + 259200000);
+        const startDateStr = startDate.toISOString().replace('Z', '');
+        console.log("Setting start date " + startDateStr);
+        const endDateStr = endDate.toISOString().replace('Z', '');;
+        console.log("Setting end date " + endDateStr);
+        const jobName = "CoPilot-" + frequency + "-" + moment(currentDate).format("YYYYMMDDHHmmss");
+        console.log("Setting jobName " + jobName);
+
+        if (reportAbsolutePath.length !== 0)
+        {
+            response = bip_job_template.replace("@@userJobName@@", jobName).replace("@@startDate@@", startDateStr).replace("@@endDate@@", endDateStr).replace("@@reportAbsolutePath@@", reportAbsolutePath);
+            console.log("Initial job json " + response);
+            if (recurrenceExpressionCron.length !== 0)
+            {
+                var responseObj = JSON.parse(response);
+                responseObj.recurrenceExpression = recurrenceExpressionCron;
+                response = JSON.stringify(responseObj);
+                console.log("Job json after appending recurrence exp " + response);
+            }
+        }
+        else
+        {
+            errorMsg = "Report path is empty";
+        }
+        
+        console.log("BIP component conversion end");
+    }
+
+    if (errorMsg.length !== 0)
+    {
+        var errorObj = {error: errorMsg};
+        response = JSON.stringify(errorObj);
+        responseCode = 400;
+    }
+
+    res.status(responseCode).json(response);
   });
 
 /*
