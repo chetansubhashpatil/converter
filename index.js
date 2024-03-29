@@ -1,13 +1,16 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const moment = require('moment');
+const axios = require('axios');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 const bip_daily_cron_exp = "@@min@@ @@hour@@ 12 * * ?";
 var bip_job_template = '{"userJobName":"@@userJobName@@","startDate":"@@startDate@@","endDate":"@@endDate@@","reportRequest":{"reportAbsolutePath":"@@reportAbsolutePath@@"}}';
-//var dummy_input = '{"frequency": "daily", "time": "09:00", "schedule": "repeat", "email": "robert@gmail.com", "reportAbsolutePath": "/chetan/simple/report.xdo"}';
+//const dummy_input_convert = '{"frequency": "daily", "time": "09:00", "schedule": "repeat", "email": "robert@gmail.com", "reportAbsolutePath": "/chetan/simple/report.xdo"}';
+
+const dummy_input_search = '{"status": "complete", "startDate": "2024-01-10", "endDate": "2024-01-20"}'
 
 // Middleware
 app.use(bodyParser.json());
@@ -17,7 +20,7 @@ app.post('/api/convert/:component', (req, res) => {
     const component = req.params.component;
     console.log("Component: " + component);
     const request = req.body;
-    //const request = JSON.parse(dummy_input);
+    //const request = JSON.parse(dummy_input_convert);
     console.log("Request: " + JSON.stringify(request));
     var response = "{}";
     var errorMsg = "";
@@ -72,7 +75,7 @@ app.post('/api/convert/:component', (req, res) => {
         var endDate = new Date(startDate.getTime() + 259200000);
         const startDateStr = startDate.toISOString().replace('Z', '');
         console.log("Setting start date " + startDateStr);
-        const endDateStr = endDate.toISOString().replace('Z', '');;
+        const endDateStr = endDate.toISOString().replace('Z', '');
         console.log("Setting end date " + endDateStr);
         const jobName = "CoPilot-" + frequency + "-" + moment(currentDate).format("YYYYMMDDHHmmss");
         console.log("Setting jobName " + jobName);
@@ -105,8 +108,78 @@ app.post('/api/convert/:component', (req, res) => {
     }
 
     console.log("Sending response " + responseCode + " " + response);
-    res.status(responseCode).json(response);
+    res.status(responseCode).json(JSON.parse(response));
   });
+
+
+// POST search request
+app.post('/api/search/:component', (req, res) => {
+    const component = req.params.component;
+    console.log("Component: " + component);
+    //const request = req.body;
+    const request = JSON.parse(dummy_input_search);
+    console.log("Request: " + JSON.stringify(request));
+    var response = "{}";
+    var errorMsg = "";
+    var responseCode = 200;
+
+    if (component && component.toLowerCase() === "bip" && request)
+    {
+        console.log("BIP component searching begin");
+
+        axios.get('http://api.example.com/resource', postData)
+        .then(response => {
+            console.log(response.data);
+        })
+        .catch(error => {
+            console.error(error);
+        });
+
+        // Read the request data
+        const currentDate = new Date();
+
+        // end date
+        // End date default current time minus 1 minute
+        var endDate = new Date(currentDate.getTime() - 60000);
+        var endDateStr = endDate.toISOString().replace('Z', '');
+        if (request.endDate)
+        {
+            endDateStr = request.endDate;
+            console.log("Setting end date " + endDateStr);
+        }
+
+        // start date
+        // Start date default end time minus 3 days
+        var startDate = new Date(endDate.getTime() - 259200000);
+        var startDateStr = startDate.toISOString().replace('Z', '');
+        if (request.startDate)
+        {
+            startDateStr = request.startDate;
+            console.log("Setting start date " + startDateStr);
+        }
+        
+        // status
+        var status = "complete";
+        if (request.status)
+        {
+            status = request.status;
+            console.log("Setting status " + status);
+        }        
+                
+        console.log("BIP component searching end");
+    }
+
+
+    if (errorMsg.length !== 0)
+    {
+        var errorObj = {error: errorMsg};
+        response = JSON.stringify(errorObj);
+        responseCode = 400;
+    }
+
+    console.log("Sending response " + responseCode + " " + response);
+    res.status(responseCode).json(response);
+});
 
 /*
 // Sample data (you can replace this with a database)
