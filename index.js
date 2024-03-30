@@ -1,22 +1,26 @@
 const express = require('express');
+const cors = require('cors');
 const bodyParser = require('body-parser');
 const moment = require('moment');
 const axios = require('axios');
-
 const app = express();
+app.use(cors()); // Allow access from all origins
 const PORT = process.env.PORT || 3000;
 
 const bip_daily_cron_exp = "@@min@@ @@hour@@ 12 * * ?";
 var bip_job_template = '{"userJobName":"@@userJobName@@","startDate":"@@startDate@@","endDate":"@@endDate@@","reportRequest":{"reportAbsolutePath":"@@reportAbsolutePath@@"}}';
-//const dummy_input_convert = '{"frequency": "daily", "time": "09:00", "schedule": "repeat", "email": "robert@gmail.com", "reportAbsolutePath": "/chetan/simple/report.xdo"}';
+const dummy_input_convert = '{"userJobName":"CoPilot-Job","frequency": "daily", "time": "09:00", "schedule": "repeat", "email": "robert@gmail.com", "reportAbsolutePath": "/chetan/simple/report.xdo"}';
 
-const dummy_input_search = '{"status": "complete", "startDate": "2024-01-10", "endDate": "2024-01-20"}'
+const llm_endpoint = 'http://phoenix431339.private5.oaceng02phx.oraclevcn.com:5004/getSearch';
+const bip_job_history_search_prompt = '{"text":"give me failed jobs in last 10 days"}';
+var bip_job_history_search_template = '{"status":"@@status@@","startDate":"@@startDate@@","endDate":"@@endDate@@"}';
+const dummy_input_search = '{"status": "complete", "startDate": "2024-01-10", "endDate": "2024-01-20"}';
 
 // Middleware
 app.use(bodyParser.json());
 
 // POST convert request
-app.post('/api/convert/:component', (req, res) => {
+app.post('/api/convert/:component', async (req, res) => {
     const component = req.params.component;
     console.log("Component: " + component);
     const request = req.body;
@@ -77,8 +81,13 @@ app.post('/api/convert/:component', (req, res) => {
         console.log("Setting start date " + startDateStr);
         const endDateStr = endDate.toISOString().replace('Z', '');
         console.log("Setting end date " + endDateStr);
-        const jobName = "CoPilot-" + frequency + "-" + moment(currentDate).format("YYYYMMDDHHmmss");
-        console.log("Setting jobName " + jobName);
+
+        var jobName = "CoPilot-" + frequency + "-" + moment(currentDate).format("YYYYMMDDHHmmss");
+        if (request.userJobName)
+        {
+          jobName = request.userJobName;
+          console.log("Setting userJobName " + jobName);
+        }        
 
         if (reportAbsolutePath.length !== 0)
         {
@@ -113,27 +122,35 @@ app.post('/api/convert/:component', (req, res) => {
 
 
 // POST search request
-app.post('/api/search/:component', (req, res) => {
+app.post('/api/search/:component', async (req, res) => {
     const component = req.params.component;
     console.log("Component: " + component);
-    //const request = req.body;
-    const request = JSON.parse(dummy_input_search);
+    const request = req.body;
+    //const request = JSON.parse(dummy_input_search);
     console.log("Request: " + JSON.stringify(request));
     var response = "{}";
     var errorMsg = "";
     var responseCode = 200;
 
-    if (component && component.toLowerCase() === "bip" && request)
+    var responseData = {}; 
+    if (request && request.text)
+    {
+      responseData = await searchQuery(JSON.stringify(request));
+      //responseData = JSON.parse(dummy_input_search);
+    }
+    else
+    {
+      errorMsg = "No prompt recieved";
+    }
+
+    if (!responseData || responseData.error) 
+    {
+        errorMsg = "Error calling LLM model";
+    }
+
+    if (component && component.toLowerCase() === "bip" && responseData && !responseData.error)
     {
         console.log("BIP component searching begin");
-
-        axios.get('http://api.example.com/resource', postData)
-        .then(response => {
-            console.log(response.data);
-        })
-        .catch(error => {
-            console.error(error);
-        });
 
         // Read the request data
         const currentDate = new Date();
@@ -141,30 +158,80 @@ app.post('/api/search/:component', (req, res) => {
         // end date
         // End date default current time minus 1 minute
         var endDate = new Date(currentDate.getTime() - 60000);
-        var endDateStr = endDate.toISOString().replace('Z', '');
-        if (request.endDate)
+        if (responseData.endDate)
         {
-            endDateStr = request.endDate;
-            console.log("Setting end date " + endDateStr);
+            var tempEndDate = responseData.endDate;
+            if(tempEndDate.indexOf('T') === -1)
+            {
+              tempEndDate = tempEndDate + "T00:00:00.000";
+            }
+            endDate = new Date(tempEndDate);            
         }
+        const formattedEndDate = endDate.toLocaleDateString('en-US', {
+          month: 'short', // Short month name (e.g., "Mar")
+          day: '2-digit', // Two-digit day of the month (e.g., "22")
+          year: 'numeric' // Full year (e.g., "2024")
+        });
+        const formattedEndTime = endDate.toLocaleTimeString('en-US', {
+          hour: '2-digit', // Two-digit hour (e.g., "08")
+          minute: '2-digit', // Two-digit minute (e.g., "46")
+          second: '2-digit', // Two-digit second (e.g., "32")
+          hour12: true // Use 12-hour clock format (AM/PM)
+        });
+        const endDateStr = `${formattedEndDate} ${formattedEndTime}`;
+        console.log("Setting end date " + endDateStr);
 
         // start date
         // Start date default end time minus 3 days
         var startDate = new Date(endDate.getTime() - 259200000);
-        var startDateStr = startDate.toISOString().replace('Z', '');
-        if (request.startDate)
+        if (responseData.startDate)
         {
-            startDateStr = request.startDate;
-            console.log("Setting start date " + startDateStr);
+          var tempStartDate = responseData.endDate;
+          if(tempStartDate.indexOf('T') === -1)
+          {
+            tempStartDate = tempStartDate + "T00:00:00.000";
+          }
+          startDate = new Date(tempStartDate);            
         }
+        const formattedStartDate = startDate.toLocaleDateString('en-US', {
+          month: 'short', // Short month name (e.g., "Mar")
+          day: '2-digit', // Two-digit day of the month (e.g., "22")
+          year: 'numeric' // Full year (e.g., "2024")
+        });
+        const formattedStartTime = startDate.toLocaleTimeString('en-US', {
+          hour: '2-digit', // Two-digit hour (e.g., "08")
+          minute: '2-digit', // Two-digit minute (e.g., "46")
+          second: '2-digit', // Two-digit second (e.g., "32")
+          hour12: true // Use 12-hour clock format (AM/PM)
+        });
+        const startDateStr = `${formattedStartDate} ${formattedStartTime}`;
+        console.log("Setting start date " + startDateStr);
+
         
         // status
         var status = "complete";
-        if (request.status)
+        if (responseData.status)
         {
-            status = request.status;
+            status = responseData.status;
             console.log("Setting status " + status);
-        }        
+        }
+
+        // Make status compatible with BIP status
+        if (status.toLowerCase() === "complete")
+        {
+          status = "S";
+        }
+        else if (status.toLowerCase() === "error")
+        {
+          status = "F";
+        }
+        else
+        {
+          status = "F";
+        }
+        
+        response = bip_job_history_search_template.replace("@@status@@", status).replace("@@startDate@@", startDateStr).replace("@@endDate@@", endDateStr);
+        console.log("Job history search json " + response);
                 
         console.log("BIP component searching end");
     }
@@ -178,8 +245,34 @@ app.post('/api/search/:component', (req, res) => {
     }
 
     console.log("Sending response " + responseCode + " " + response);
-    res.status(responseCode).json(response);
+    res.status(responseCode).json(JSON.parse(response));
 });
+
+
+async function searchQuery(prompt) 
+{
+    console.error("LLM search query starting");
+    var res = {};
+    try 
+    {
+      // Make call to llm with post data with timeout set to 30 seconds (30000 milliseconds)
+      const response = await axios.post(llm_endpoint, JSON.parse(prompt), {timeout: 30000});
+      //const response = await axios.post("http://localhost:3000/api/convert/bip", JSON.parse(dummy_input_convert));
+      console.log("LLM search query response: " + JSON.stringify(response.data));
+      // Return the response data
+      res = response.data; 
+    } 
+    catch (err) 
+    {
+      console.error("LLM search query error: " + JSON.stringify(err));
+      res = {error: err};
+      // Re-throw the error to handle it outside this function if needed
+      //throw err; 
+    }
+    console.error("LLM search query ending");
+    return res;
+}
+
 
 /*
 // Sample data (you can replace this with a database)
